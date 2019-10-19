@@ -1,6 +1,7 @@
 package lu
 
 import (
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -24,10 +25,12 @@ type Context interface {
 	View(status int, name string, data interface{})         //输出模板数据
 	Redirect(status int, to string)                         //跳转
 
-	Method() string //方法
-	Host() string   //主机（不含端口）
-	Path() string   //路径
-	RealIP() string //获取真实IP
+	Method() string                                                      //方法
+	Host() string                                                        //主机（不含端口）
+	Path() string                                                        //路径
+	RealIP() string                                                      //获取真实IP
+	FormValue(name string) string                                        //请求Form参数
+	FormFile(name string) (multipart.File, *multipart.FileHeader, error) //上传文件参数
 
 	HeaderSet(name string, values ...string)
 	HeaderGet(name string) string
@@ -147,6 +150,14 @@ func (c *srContext) Host() string {
 
 func (c *srContext) RealIP() string {
 	return realip(c.request)
+}
+
+func (c *srContext) FormValue(name string) string {
+	return c.request.FormValue(name)
+}
+
+func (c *srContext) FormFile(name string) (multipart.File, *multipart.FileHeader, error) {
+	return c.request.FormFile(name)
 }
 
 func (c *srContext) HeaderGet(name string) string {
