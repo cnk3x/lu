@@ -12,7 +12,6 @@ import (
 	"strings"
 )
 
-//Response http输出
 type response interface {
 	Render(c Context, w http.ResponseWriter)
 }
@@ -31,10 +30,7 @@ type encoderResponse struct {
 	data   interface{}
 }
 
-func (resp *encoderResponse) Render(c Context, w http.ResponseWriter) {
-	b := &bytes.Buffer{}
-	contentType := "text/plain;charset=utf-8"
-
+func (resp *encoderResponse) decterFormat(c Context) {
 	if resp.format == "" {
 		accept := c.HeaderGet("Accept")
 		switch {
@@ -44,6 +40,13 @@ func (resp *encoderResponse) Render(c Context, w http.ResponseWriter) {
 			resp.format = "json"
 		}
 	}
+}
+
+func (resp *encoderResponse) Render(c Context, w http.ResponseWriter) {
+	b := &bytes.Buffer{}
+	contentType := "text/plain;charset=utf-8"
+
+	resp.decterFormat(c)
 
 	switch resp.format {
 	case "xml":
@@ -76,20 +79,29 @@ type viewResponse struct {
 	data   interface{}
 }
 
-func (resp *viewResponse) Render(c Context, w http.ResponseWriter) {
+func (resp *viewResponse) templateRender(c Context, w http.ResponseWriter) ([]byte, error) {
 	b := &bytes.Buffer{}
-	contentType := "text/plain;charset=utf-8"
+	t := c.Template()
+	if t != nil {
+		return nil, t.ExecuteTemplate(b, resp.name, resp.data)
+	}
+	return b.Bytes(), nil
+}
 
+func (resp *viewResponse) Render(c Context, w http.ResponseWriter) {
+	var data []byte
 	if resp.name != "" {
-		t := c.Template()
-		if t != nil {
-			if err := t.ExecuteTemplate(b, resp.name, resp.data); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+		w.Header().Set("Content-Type", "text/plain;charset=utf-8")
+		var err error
+		if data, err = resp.templateRender(c, w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	} else {
+		b := &bytes.Buffer{}
+		contentType := "text/plain;charset=utf-8"
 		accept := c.HeaderGet("Accept")
+
 		switch {
 		case strings.Contains(accept, "xml"):
 			if err := xml.NewEncoder(b).Encode(resp.data); err != nil {
@@ -109,11 +121,12 @@ func (resp *viewResponse) Render(c Context, w http.ResponseWriter) {
 				return
 			}
 		}
+		w.Header().Set("Content-Type", contentType)
+		data = b.Bytes()
 	}
 
 	w.WriteHeader(resp.status)
-	w.Header().Set("Content-Type", contentType)
-	w.Write(b.Bytes())
+	w.Write(data)
 }
 
 type binaryResponse struct {

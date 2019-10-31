@@ -104,16 +104,21 @@ func (router *Router) Assets(path string, dir string) {
 
 //ServeHTTP 实现 http Handler接口
 func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		if err := recover(); err != nil {
-			_, f, l, _ := runtime.Caller(0)
-			http.Error(w, fmt.Sprintf("%s:%d %#v", f, l, err), http.StatusInternalServerError)
-		}
-	}()
-
 	c := newContext(router, r)
 	defer c.release()
+	defer router.flush(c, w)
+
+	//执行过程
 	router.serveContext(c)
+}
+
+//输出
+func (router *Router) flush(c *srContext, w http.ResponseWriter) {
+	if err := recover(); err != nil {
+		_, f, l, _ := runtime.Caller(0)
+		http.Error(w, fmt.Sprintf("%s:%d %v", f, l, err), http.StatusInternalServerError)
+		return
+	}
 
 	for n := range c.header {
 		w.Header().Set(n, c.header.Get(n))
